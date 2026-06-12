@@ -22,8 +22,8 @@ public class TechnologyCreateRequest {
 
     @Size(max = 255, message = "Icon URL must not exceed 255 characters")
     @Pattern(
-            regexp = "^(|https?://\\S+)$",
-            message = "Icon URL must be empty or a valid http(s) URL"
+            regexp = "^(|[a-zA-Z0-9_-]+|https?://\\S+)$",
+            message = "Icon URL must be empty, a preset key, or a valid http(s) URL"
     )
     private String iconUrl;
 }

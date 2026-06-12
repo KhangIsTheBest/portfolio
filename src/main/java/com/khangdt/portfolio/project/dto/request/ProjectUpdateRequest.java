@@ -55,8 +55,8 @@ public class ProjectUpdateRequest {
 
     @Size(max = 500, message = "Thumbnail URL must not exceed 500 characters")
     @Pattern(
-            regexp = "^(|https?://\\S+)$",
-            message = "Thumbnail URL must be empty or a valid http(s) URL"
+            regexp = "^(|/\\S+|https?://\\S+)$",
+            message = "Thumbnail URL must be empty, a relative path starting with /, or a valid http(s) URL"
     )
     private String thumbnailUrl;
 

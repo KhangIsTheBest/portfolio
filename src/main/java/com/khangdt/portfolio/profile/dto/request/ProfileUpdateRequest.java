@@ -44,8 +44,8 @@ public class ProfileUpdateRequest {
 
     @Size(max = 500, message = "Avatar URL must not exceed 500 characters")
     @Pattern(
-            regexp = "^(|https?://\\S+)$",
-            message = "Avatar URL must be empty or a valid http(s) URL"
+            regexp = "^(|/\\S+|https?://\\S+)$",
+            message = "Avatar URL must be empty, a relative path starting with /, or a valid http(s) URL"
     )
     private String avatarUrl;
 }
