@@ -10,7 +10,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface ProjectService {
 
-    ProjectResponse createProject(ProjectCreateRequest request, Long createdById);
+    ProjectResponse createProject(ProjectCreateRequest request);
 
     ProjectResponse updateProject(Long id, ProjectUpdateRequest request);
 

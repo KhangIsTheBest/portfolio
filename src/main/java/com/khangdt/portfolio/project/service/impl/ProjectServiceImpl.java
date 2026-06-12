@@ -1,7 +1,6 @@
 package com.khangdt.portfolio.project.service.impl;
 
-import com.khangdt.portfolio.auth.entity.User;
-import com.khangdt.portfolio.auth.repository.UserRepository;
+import com.khangdt.portfolio.auth.security.SecurityUtils;
 import com.khangdt.portfolio.common.exception.BadRequestException;
 import com.khangdt.portfolio.common.exception.DuplicateResourceException;
 import com.khangdt.portfolio.common.exception.ResourceNotFoundException;
@@ -37,18 +36,17 @@ public class ProjectServiceImpl implements ProjectService {
 
     private final ProjectRepository projectRepository;
     private final TechnologyRepository technologyRepository;
-    private final UserRepository userRepository;
     private final ProjectMapper projectMapper;
 
     @Override
     @Transactional
-    public ProjectResponse createProject(ProjectCreateRequest request, Long createdById) {
+    public ProjectResponse createProject(ProjectCreateRequest request) {
         if (projectRepository.existsBySlug(request.getSlug())) {
             throw new DuplicateResourceException(RESOURCE_NAME, "slug", request.getSlug());
         }
 
         Project project = projectMapper.toEntity(request);
-        project.setCreatedBy(resolveCreatedBy(createdById));
+        project.setCreatedBy(SecurityUtils.getCurrentUser());
         project.setTechnologies(resolveTechnologies(request.getTechnologyIds()));
         replaceImages(project, request.getImages());
 
@@ -109,15 +107,6 @@ public class ProjectServiceImpl implements ProjectService {
     private Project findProjectById(Long id) {
         return projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(RESOURCE_NAME, "id", id));
-    }
-
-    private User resolveCreatedBy(Long createdById) {
-        if (createdById == null) {
-            return null;
-        }
-
-        return userRepository.findById(createdById)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", createdById));
     }
 
     private Set<Technology> resolveTechnologies(List<Long> technologyIds) {

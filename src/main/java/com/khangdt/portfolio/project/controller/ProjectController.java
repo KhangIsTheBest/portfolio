@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Tag(name = "Projects", description = "Project management APIs")
 public class ProjectController {
+
+    private static final String BEARER_AUTH = "Bearer Authentication";
 
     private final ProjectService projectService;
 
@@ -118,8 +121,9 @@ public class ProjectController {
 
     @Operation(
             summary = "Create project",
-            description = "Creates a new project. Admin endpoint."
+            description = "Creates a new project. Requires admin JWT."
     )
+    @SecurityRequirement(name = BEARER_AUTH)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "201",
@@ -141,19 +145,18 @@ public class ProjectController {
                     required = true,
                     content = @Content(schema = @Schema(implementation = ProjectCreateRequest.class))
             )
-            @Valid @RequestBody ProjectCreateRequest request,
-            @Parameter(description = "Creator user ID (temporary until auth module is ready)", example = "1")
-            @RequestParam(required = false) Long createdById
+            @Valid @RequestBody ProjectCreateRequest request
     ) {
-        ProjectResponse project = projectService.createProject(request, createdById);
+        ProjectResponse project = projectService.createProject(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Project created successfully", project));
     }
 
     @Operation(
             summary = "Update project",
-            description = "Updates an existing project. Admin endpoint."
+            description = "Updates an existing project. Requires admin JWT."
     )
+    @SecurityRequirement(name = BEARER_AUTH)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
@@ -180,8 +183,9 @@ public class ProjectController {
 
     @Operation(
             summary = "Delete project",
-            description = "Deletes a project and its related images. Admin endpoint."
+            description = "Deletes a project and its related images. Requires admin JWT."
     )
+    @SecurityRequirement(name = BEARER_AUTH)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
