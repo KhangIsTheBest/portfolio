@@ -34,7 +34,8 @@ public class SecurityConfig {
             "/api/v1/projects",
             "/api/v1/projects/**",
             "/api/v1/technologies",
-            "/api/v1/technologies/**"
+            "/api/v1/technologies/**",
+            "/api/v1/profile"
     };
 
     private static final String[] AUTH_ENDPOINTS = {
