@@ -29,6 +29,7 @@ public class AuthDataInitializer implements CommandLineRunner {
         User admin = User.builder()
                 .username(defaultAdminProperties.getUsername())
                 .email(defaultAdminProperties.getEmail())
+                .fullName("Administrator")
                 .password(passwordEncoder.encode(defaultAdminProperties.getPassword()))
                 .role("ADMIN")
                 .build();
