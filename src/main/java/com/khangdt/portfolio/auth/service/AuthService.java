@@ -12,6 +12,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import com.khangdt.portfolio.auth.dto.request.RegisterRequest;
+import com.khangdt.portfolio.auth.repository.UserRepository;
+import com.khangdt.portfolio.common.exception.DuplicateResourceException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -21,6 +26,28 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Transactional
+    public AuthUserResponse register(RegisterRequest request) {
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new DuplicateResourceException("User", "username", request.getUsername());
+        }
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new DuplicateResourceException("User", "email", request.getEmail());
+        }
+
+        User user = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role("USER")
+                .build();
+
+        User savedUser = userRepository.save(user);
+        return toAuthUserResponse(savedUser);
+    }
 
     public AuthResponse login(LoginRequest request) {
         try {

@@ -7,7 +7,9 @@ import com.khangdt.portfolio.contact.entity.Contact;
 import com.khangdt.portfolio.contact.mapper.ContactMapper;
 import com.khangdt.portfolio.contact.repository.ContactRepository;
 import com.khangdt.portfolio.contact.service.ContactService;
+import com.khangdt.portfolio.common.service.EmailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,12 +24,35 @@ public class ContactServiceImpl implements ContactService {
 
     private final ContactRepository contactRepository;
     private final ContactMapper contactMapper;
+    private final EmailService emailService;
+
+    @Value("${spring.mail.username:}")
+    private String adminEmail;
 
     @Override
     @Transactional
     public ContactResponse submitContact(ContactSubmitRequest request) {
         Contact contact = contactMapper.toEntity(request);
         Contact savedContact = contactRepository.save(contact);
+        
+        try {
+            String subject = "[Portfolio CLI] Tin nhắn mới từ: " + request.getName();
+            String body = String.format(
+                "Bạn nhận được một tin nhắn liên hệ mới:\n\n" +
+                "Họ và tên: %s\n" +
+                "Email: %s\n" +
+                "Chủ đề: %s\n\n" +
+                "Nội dung:\n%s",
+                request.getName(),
+                request.getEmail(),
+                request.getSubject(),
+                request.getMessage()
+            );
+            emailService.sendSimpleEmail(adminEmail, subject, body);
+        } catch (Exception e) {
+            System.err.println("Failed to send contact notification email: " + e.getMessage());
+        }
+        
         return contactMapper.toResponse(savedContact);
     }
 
