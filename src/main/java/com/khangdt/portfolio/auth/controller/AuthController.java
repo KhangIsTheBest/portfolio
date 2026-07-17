@@ -1,6 +1,7 @@
 package com.khangdt.portfolio.auth.controller;
 
 import com.khangdt.portfolio.auth.dto.request.LoginRequest;
+import com.khangdt.portfolio.auth.dto.request.GoogleLoginRequest;
 import com.khangdt.portfolio.auth.dto.request.RegisterRequest;
 import com.khangdt.portfolio.auth.dto.response.AuthResponse;
 import com.khangdt.portfolio.auth.dto.response.AuthUserResponse;
@@ -54,6 +55,34 @@ public class AuthController {
     ) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @Operation(
+            summary = "Login with Google",
+            description = "Authenticates user using Google ID token and returns a JWT access token"
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Google login successful"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Invalid Google ID token"
+            )
+    })
+    @SecurityRequirements
+    @PostMapping("/google")
+    public ResponseEntity<ApiResponse<AuthResponse>> loginWithGoogle(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Google ID token payload",
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = GoogleLoginRequest.class))
+            )
+            @Valid @RequestBody GoogleLoginRequest request
+    ) {
+        AuthResponse response = authService.loginWithGoogle(request);
+        return ResponseEntity.ok(ApiResponse.success("Google login successful", response));
     }
 
     @Operation(
