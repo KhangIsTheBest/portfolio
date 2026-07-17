@@ -6,6 +6,7 @@ import com.khangdt.portfolio.file.service.FileStorageService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,6 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 @Service
+@ConditionalOnProperty(name = "app.upload.provider", havingValue = "local", matchIfMissing = true)
 public class LocalFileStorageServiceImpl implements FileStorageService {
 
     @Value("${app.upload.dir:uploads}")
