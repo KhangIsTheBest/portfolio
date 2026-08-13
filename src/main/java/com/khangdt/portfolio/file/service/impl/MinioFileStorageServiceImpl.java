@@ -75,6 +75,9 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
 
     @Override
     public UploadFileResponse storeFile(MultipartFile file) {
+        if (minioClient == null) {
+            throw new BadRequestException("MinIO service is not configured or reachable.");
+        }
         if (file.isEmpty()) {
             throw new BadRequestException("Failed to store empty file.");
         }

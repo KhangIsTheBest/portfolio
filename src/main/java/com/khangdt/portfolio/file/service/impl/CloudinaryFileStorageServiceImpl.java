@@ -32,17 +32,24 @@ public class CloudinaryFileStorageServiceImpl implements FileStorageService {
     @PostConstruct
     public void init() {
         if (cloudName == null || cloudName.isBlank()) {
-            throw new IllegalStateException("Cloudinary cloud-name property is not configured!");
+            return;
         }
-        this.cloudinary = new Cloudinary(ObjectUtils.asMap(
-                "cloud_name", cloudName,
-                "api_key", apiKey,
-                "api_secret", apiSecret
-        ));
+        try {
+            this.cloudinary = new Cloudinary(ObjectUtils.asMap(
+                    "cloud_name", cloudName,
+                    "api_key", apiKey,
+                    "api_secret", apiSecret
+            ));
+        } catch (Exception ex) {
+            // Log warning instead of crashing application startup
+        }
     }
 
     @Override
     public UploadFileResponse storeFile(MultipartFile file) {
+        if (cloudinary == null) {
+            throw new BadRequestException("Cloudinary service is not configured on the server.");
+        }
         if (file.isEmpty()) {
             throw new BadRequestException("Failed to store empty file.");
         }
