@@ -42,8 +42,8 @@ public class ProjectController {
     private final ProjectService projectService;
 
     @Operation(
-            summary = "Get projects",
-            description = "Returns a paginated list of projects filtered by status"
+            summary = "Get published projects",
+            description = "Returns a paginated list of published projects"
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -53,11 +53,30 @@ public class ProjectController {
     })
     @GetMapping("/api/v1/projects")
     public ResponseEntity<ApiResponse<PagedResponse<ProjectSummaryResponse>>> getProjects(
-            @Parameter(description = "Project status filter", example = "PUBLISHED")
-            @RequestParam(defaultValue = "PUBLISHED") ProjectStatus status,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        Page<ProjectSummaryResponse> projects = projectService.getProjects(status, pageable);
+        Page<ProjectSummaryResponse> projects = projectService.getProjects(ProjectStatus.PUBLISHED, pageable);
+        return ResponseEntity.ok(ApiResponse.success(PagedResponse.from(projects)));
+    }
+
+    @Operation(
+            summary = "Get admin projects",
+            description = "Returns all projects (including DRAFT and ARCHIVED) for admin management. Requires admin JWT."
+    )
+    @SecurityRequirement(name = BEARER_AUTH)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Projects retrieved successfully"
+            )
+    })
+    @GetMapping("/api/v1/admin/projects")
+    public ResponseEntity<ApiResponse<PagedResponse<ProjectSummaryResponse>>> getAdminProjects(
+            @Parameter(description = "Optional project status filter", example = "PUBLISHED")
+            @RequestParam(required = false) ProjectStatus status,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<ProjectSummaryResponse> projects = projectService.getAdminProjects(status, pageable);
         return ResponseEntity.ok(ApiResponse.success(PagedResponse.from(projects)));
     }
 

@@ -1,0 +1,119 @@
+package com.khangdt.portfolio.file.service.impl;
+
+import com.khangdt.portfolio.common.exception.BadRequestException;
+import com.khangdt.portfolio.file.dto.response.UploadFileResponse;
+import com.khangdt.portfolio.file.service.FileStorageService;
+import io.minio.*;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.InputStream;
+import java.util.UUID;
+
+@Service
+@ConditionalOnProperty(name = "app.upload.provider", havingValue = "minio")
+@Slf4j
+public class MinioFileStorageServiceImpl implements FileStorageService {
+
+    @Value("${minio.endpoint:http://localhost:9000}")
+    private String endpoint;
+
+    @Value("${minio.public-url:http://localhost:9000}")
+    private String publicUrl;
+
+    @Value("${minio.access-key:minioadmin}")
+    private String accessKey;
+
+    @Value("${minio.secret-key:minioadmin}")
+    private String secretKey;
+
+    @Value("${minio.bucket-name:portfolio-uploads}")
+    private String bucketName;
+
+    private MinioClient minioClient;
+
+    @PostConstruct
+    public void init() {
+        try {
+            minioClient = MinioClient.builder()
+                    .endpoint(endpoint)
+                    .credentials(accessKey, secretKey)
+                    .build();
+
+            boolean found = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
+            if (!found) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+                log.info("MinIO bucket '{}' created successfully.", bucketName);
+
+                // Set public READ policy so browser can load image URLs directly
+                String policy = """
+                {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Principal": {"AWS": ["*"]},
+                      "Action": ["s3:GetObject"],
+                      "Resource": ["arn:aws:s3:::%s/*"]
+                    }
+                  ]
+                }
+                """.formatted(bucketName);
+
+                minioClient.setBucketPolicy(
+                        SetBucketPolicyArgs.builder().bucket(bucketName).config(policy).build()
+                );
+            }
+        } catch (Exception ex) {
+            log.error("Failed to initialize MinIO client or bucket", ex);
+        }
+    }
+
+    @Override
+    public UploadFileResponse storeFile(MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new BadRequestException("Failed to store empty file.");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.startsWith("image/") && !contentType.equals("application/pdf"))) {
+            throw new BadRequestException("Only image or PDF files are allowed.");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        String extension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+
+        String objectName = UUID.randomUUID().toString() + extension;
+
+        try (InputStream inputStream = file.getInputStream()) {
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(inputStream, file.getSize(), -1)
+                            .contentType(contentType)
+                            .build()
+            );
+
+            String fileUrl = publicUrl + "/" + bucketName + "/" + objectName;
+
+            return UploadFileResponse.builder()
+                    .fileName(objectName)
+                    .fileUrl(fileUrl)
+                    .fileType(contentType)
+                    .size(file.getSize())
+                    .build();
+
+        } catch (Exception ex) {
+            log.error("Could not store file in MinIO", ex);
+            throw new BadRequestException("Could not store file in MinIO. Error: " + ex.getMessage());
+        }
+    }
+}

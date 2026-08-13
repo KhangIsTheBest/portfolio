@@ -22,5 +22,7 @@ public interface ProjectService {
 
     Page<ProjectSummaryResponse> getProjects(ProjectStatus status, Pageable pageable);
 
+    Page<ProjectSummaryResponse> getAdminProjects(ProjectStatus status, Pageable pageable);
+
     Page<ProjectSummaryResponse> getFeaturedProjects(Pageable pageable);
 }

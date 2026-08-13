@@ -99,6 +99,16 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
+    public Page<ProjectSummaryResponse> getAdminProjects(ProjectStatus status, Pageable pageable) {
+        if (status != null) {
+            return projectRepository.findByStatus(status, pageable)
+                    .map(projectMapper::toSummaryResponse);
+        }
+        return projectRepository.findAll(pageable)
+                .map(projectMapper::toSummaryResponse);
+    }
+
+    @Override
     public Page<ProjectSummaryResponse> getFeaturedProjects(Pageable pageable) {
         return projectRepository.findByFeaturedTrueAndStatus(ProjectStatus.PUBLISHED, pageable)
                 .map(projectMapper::toSummaryResponse);

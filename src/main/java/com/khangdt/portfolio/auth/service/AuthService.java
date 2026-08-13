@@ -27,6 +27,8 @@ import com.google.api.client.json.gson.GsonFactory;
 import java.util.Collections;
 import java.util.UUID;
 
+import com.khangdt.portfolio.auth.entity.Role;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -54,7 +56,7 @@ public class AuthService {
                 .email(request.getEmail())
                 .fullName(request.getFullName())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role("USER")
+                .role(Role.USER)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -119,7 +121,7 @@ public class AuthService {
                         .email(email)
                         .fullName(finalName)
                         .password(passwordEncoder.encode(UUID.randomUUID().toString()))
-                        .role("USER")
+                        .role(Role.USER)
                         .build();
                 return userRepository.save(newUser);
             });
@@ -144,7 +146,7 @@ public class AuthService {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole())
+                .role(user.getRole() != null ? user.getRole().name() : Role.USER.name())
                 .build();
     }
 }

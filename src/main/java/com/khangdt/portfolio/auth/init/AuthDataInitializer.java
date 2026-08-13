@@ -1,6 +1,7 @@
 package com.khangdt.portfolio.auth.init;
 
 import com.khangdt.portfolio.auth.config.DefaultAdminProperties;
+import com.khangdt.portfolio.auth.entity.Role;
 import com.khangdt.portfolio.auth.entity.User;
 import com.khangdt.portfolio.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ public class AuthDataInitializer implements CommandLineRunner {
                 .email(defaultAdminProperties.getEmail())
                 .fullName("Administrator")
                 .password(passwordEncoder.encode(defaultAdminProperties.getPassword()))
-                .role("ADMIN")
+                .role(Role.ADMIN)
                 .build();
 
         userRepository.save(admin);
