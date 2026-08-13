@@ -44,23 +44,31 @@ public class AuthService {
 
     @Transactional
     public AuthUserResponse register(RegisterRequest request) {
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new DuplicateResourceException("User", "username", request.getUsername());
+        String username = request.getUsername() != null ? request.getUsername().trim() : "";
+        String email = request.getEmail() != null ? request.getEmail().trim() : "";
+        String fullName = request.getFullName() != null ? request.getFullName().trim() : "";
+
+        if (userRepository.findByUsername(username).isPresent()) {
+            throw new DuplicateResourceException("User", "username", username);
         }
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new DuplicateResourceException("User", "email", request.getEmail());
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new DuplicateResourceException("User", "email", email);
         }
 
-        User user = User.builder()
-                .username(request.getUsername())
-                .email(request.getEmail())
-                .fullName(request.getFullName())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.USER)
-                .build();
+        try {
+            User user = User.builder()
+                    .username(username)
+                    .email(email)
+                    .fullName(fullName)
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .role(Role.USER)
+                    .build();
 
-        User savedUser = userRepository.save(user);
-        return toAuthUserResponse(savedUser);
+            User savedUser = userRepository.save(user);
+            return toAuthUserResponse(savedUser);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            throw new DuplicateResourceException("User", "username/email", username);
+        }
     }
 
     public AuthResponse login(LoginRequest request) {

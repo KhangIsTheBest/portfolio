@@ -63,9 +63,16 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Maximum upload size exceeded (max 10MB)."));
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        String msg = "Username or Email already exists.";
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(msg));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
-        ex.printStackTrace(); // print stacktrace to console/standard error
+        ex.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An unexpected error occurred: " + ex.getMessage()));
     }
