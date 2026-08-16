@@ -18,6 +18,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
 @RestController
 @RequiredArgsConstructor
 @Tag(name = "Files", description = "File upload management APIs")
@@ -49,5 +54,35 @@ public class FileController {
         UploadFileResponse response = fileStorageService.storeFile(file);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("File uploaded successfully", response));
+    }
+
+    @Operation(
+            summary = "Get raw file stream",
+            description = "Serves uploaded file directly via API proxy"
+    )
+    @GetMapping("/api/v1/files/raw/{filename:.+}")
+    public ResponseEntity<Resource> getFileRaw(@PathVariable String filename) {
+        Resource resource = fileStorageService.loadFileAsResource(filename);
+        
+        String contentType = "application/octet-stream";
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            contentType = "image/jpeg";
+        } else if (lower.endsWith(".png")) {
+            contentType = "image/png";
+        } else if (lower.endsWith(".gif")) {
+            contentType = "image/gif";
+        } else if (lower.endsWith(".webp")) {
+            contentType = "image/webp";
+        } else if (lower.endsWith(".svg")) {
+            contentType = "image/svg+xml";
+        } else if (lower.endsWith(".pdf")) {
+            contentType = "application/pdf";
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=31536000, public")
+                .body(resource);
     }
 }

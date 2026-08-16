@@ -79,4 +79,9 @@ public class CloudinaryFileStorageServiceImpl implements FileStorageService {
             throw new BadRequestException("Could not store file on Cloudinary. Error: " + ex.getMessage());
         }
     }
+
+    @Override
+    public org.springframework.core.io.Resource loadFileAsResource(String filename) {
+        throw new UnsupportedOperationException("Cloudinary handles URLs directly");
+    }
 }

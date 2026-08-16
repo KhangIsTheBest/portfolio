@@ -106,7 +106,14 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
                             .build()
             );
 
-            String fileUrl = publicUrl + "/" + bucketName + "/" + objectName;
+            String fileUrl;
+            if (publicUrl.endsWith("/api/v1/files/raw")) {
+                fileUrl = publicUrl + "/" + objectName;
+            } else if (publicUrl.contains("/portfolio-uploads")) {
+                fileUrl = publicUrl.substring(0, publicUrl.indexOf("/portfolio-uploads")) + "/api/v1/files/raw/" + objectName;
+            } else {
+                fileUrl = publicUrl + "/api/v1/files/raw/" + objectName;
+            }
 
             return UploadFileResponse.builder()
                     .fileName(objectName)
@@ -118,6 +125,25 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
         } catch (Exception ex) {
             log.error("Could not store file in MinIO", ex);
             throw new BadRequestException("Could not store file in MinIO. Error: " + ex.getMessage());
+        }
+    }
+
+    @Override
+    public org.springframework.core.io.Resource loadFileAsResource(String filename) {
+        if (minioClient == null) {
+            throw new BadRequestException("MinIO service is not configured.");
+        }
+        try {
+            InputStream inputStream = minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(filename)
+                            .build()
+            );
+            return new org.springframework.core.io.InputStreamResource(inputStream);
+        } catch (Exception ex) {
+            log.error("Could not read file from MinIO: {}", filename, ex);
+            throw new BadRequestException("File not found in MinIO: " + filename);
         }
     }
 }

@@ -80,4 +80,19 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             throw new BadRequestException("Could not store file " + originalFileName + ". Please try again! Error: " + ex.getMessage());
         }
     }
+
+    @Override
+    public org.springframework.core.io.Resource loadFileAsResource(String filename) {
+        try {
+            Path filePath = this.fileStorageLocation.resolve(filename).normalize();
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+            if (resource.exists()) {
+                return resource;
+            } else {
+                throw new BadRequestException("File not found: " + filename);
+            }
+        } catch (Exception ex) {
+            throw new BadRequestException("File not found: " + filename);
+        }
+    }
 }
