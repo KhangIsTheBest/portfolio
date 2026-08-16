@@ -124,9 +124,20 @@ public class ProjectMapper {
             return Collections.emptyList();
         }
 
-        return images.stream()
-                .map(this::toImageResponse)
-                .toList();
+        java.util.Set<Object> seenKeys = new java.util.HashSet<>();
+        java.util.List<ProjectImageResponse> result = new java.util.ArrayList<>();
+
+        for (ProjectImage image : images) {
+            if (image == null) {
+                continue;
+            }
+            Object key = image.getId() != null ? image.getId() : image.getImageUrl();
+            if (key != null && seenKeys.add(key)) {
+                result.add(toImageResponse(image));
+            }
+        }
+
+        return result;
     }
 
     public ProjectTechnologyResponse toTechnologyResponse(Technology technology) {

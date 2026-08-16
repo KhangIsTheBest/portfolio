@@ -11,10 +11,10 @@ import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
-    @EntityGraph(attributePaths = {"images", "technologies", "createdBy"})
+    @EntityGraph(attributePaths = {"technologies", "createdBy"})
     Optional<Project> findBySlug(String slug);
 
-    @EntityGraph(attributePaths = {"images", "technologies", "createdBy"})
+    @EntityGraph(attributePaths = {"technologies", "createdBy"})
     Optional<Project> findDetailedById(Long id);
 
     boolean existsBySlug(String slug);

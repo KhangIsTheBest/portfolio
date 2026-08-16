@@ -29,8 +29,6 @@ public class ProjectDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         seedTechnologies();
-        seedProjects();
-        seedBlogs();
     }
 
     private void seedTechnologies() {

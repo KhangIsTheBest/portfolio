@@ -138,15 +138,28 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     private void replaceImages(Project project, List<ProjectImageRequest> imageRequests) {
+        // Force-initialize the lazy images collection before clearing
+        // This ensures Hibernate tracks the removal via orphanRemoval = true
+        if (project.getId() != null) {
+            project.getImages().size(); // triggers lazy load
+        }
+
+        // Clear existing images — orphanRemoval will DELETE them on flush
         project.getImages().clear();
 
         if (imageRequests == null || imageRequests.isEmpty()) {
             return;
         }
 
+        Set<String> seenUrls = new HashSet<>();
         for (ProjectImageRequest imageRequest : imageRequests) {
-            ProjectImage image = projectMapper.toProjectImage(imageRequest);
-            project.addImage(image);
+            if (imageRequest.getImageUrl() != null && !imageRequest.getImageUrl().trim().isEmpty()) {
+                String cleanUrl = imageRequest.getImageUrl().trim();
+                if (seenUrls.add(cleanUrl)) {
+                    ProjectImage image = projectMapper.toProjectImage(imageRequest);
+                    project.addImage(image);
+                }
+            }
         }
     }
 }
