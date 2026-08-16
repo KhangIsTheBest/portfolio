@@ -48,28 +48,29 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
             if (!found) {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
                 log.info("MinIO bucket '{}' created successfully.", bucketName);
-
-                // Set public READ policy so browser can load image URLs directly
-                String policy = """
-                {
-                  "Version": "2012-10-17",
-                  "Statement": [
-                    {
-                      "Effect": "Allow",
-                      "Principal": {"AWS": ["*"]},
-                      "Action": ["s3:GetObject"],
-                      "Resource": ["arn:aws:s3:::%s/*"]
-                    }
-                  ]
-                }
-                """.formatted(bucketName);
-
-                minioClient.setBucketPolicy(
-                        SetBucketPolicyArgs.builder().bucket(bucketName).config(policy).build()
-                );
             }
+
+            // Always ensure public READ policy so browser can load image URLs directly
+            String policy = """
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {"AWS": ["*"]},
+                  "Action": ["s3:GetObject"],
+                  "Resource": ["arn:aws:s3:::%s/*"]
+                }
+              ]
+            }
+            """.formatted(bucketName);
+
+            minioClient.setBucketPolicy(
+                    SetBucketPolicyArgs.builder().bucket(bucketName).config(policy).build()
+            );
+            log.info("MinIO public read bucket policy applied successfully to '{}'.", bucketName);
         } catch (Exception ex) {
-            log.error("Failed to initialize MinIO client or bucket", ex);
+            log.error("Failed to initialize MinIO client or bucket policy", ex);
         }
     }
 
