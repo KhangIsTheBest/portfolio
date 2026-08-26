@@ -1,0 +1,17 @@
+name: Deploy Backend to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Deploy Backend Container
+        run: |
+          cd ~/portfolio-app/portfolio
+          git pull
+          cd ~/portfolio-app
+          docker compose up -d --build backend
