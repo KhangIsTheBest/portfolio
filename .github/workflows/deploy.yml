@@ -12,6 +12,7 @@ jobs:
       - name: Deploy Backend Container
         run: |
           cd ~/portfolio-app/portfolio
-          git pull
+          git fetch origin main
+          git reset --hard origin/main
           cd ~/portfolio-app
-          docker compose up -d --build backend
+          docker compose up -d --build --no-deps backend
