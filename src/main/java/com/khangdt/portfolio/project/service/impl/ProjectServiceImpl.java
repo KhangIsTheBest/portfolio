@@ -18,6 +18,9 @@ import com.khangdt.portfolio.project.service.ProjectService;
 import com.khangdt.portfolio.technology.entity.Technology;
 import com.khangdt.portfolio.technology.repository.TechnologyRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -40,6 +43,10 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "project", allEntries = true),
+            @CacheEvict(value = "projects_featured", allEntries = true)
+    })
     public ProjectResponse createProject(ProjectCreateRequest request) {
         if (projectRepository.existsBySlug(request.getSlug())) {
             throw new DuplicateResourceException(RESOURCE_NAME, "slug", request.getSlug());
@@ -56,6 +63,10 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "project", allEntries = true),
+            @CacheEvict(value = "projects_featured", allEntries = true)
+    })
     public ProjectResponse updateProject(Long id, ProjectUpdateRequest request) {
         Project project = findProjectById(id);
 
@@ -73,6 +84,10 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "project", allEntries = true),
+            @CacheEvict(value = "projects_featured", allEntries = true)
+    })
     public void deleteProject(Long id) {
         Project project = findProjectById(id);
         projectRepository.delete(project);
@@ -86,6 +101,7 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
+    @Cacheable(value = "project", key = "#slug")
     public ProjectResponse getProjectBySlug(String slug) {
         Project project = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException(RESOURCE_NAME, "slug", slug));

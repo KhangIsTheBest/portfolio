@@ -36,6 +36,10 @@ public class SecurityConfig {
             "/api-docs/**"
     };
 
+    private static final String[] ACTUATOR_ENDPOINTS = {
+            "/actuator/**"
+    };
+
     private static final String[] PUBLIC_GET_ENDPOINTS = {
             "/api/v1/projects",
             "/api/v1/projects/**",
@@ -69,6 +73,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SWAGGER_ENDPOINTS).permitAll()
+                        .requestMatchers(ACTUATOR_ENDPOINTS).permitAll()
                         .requestMatchers(AUTH_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

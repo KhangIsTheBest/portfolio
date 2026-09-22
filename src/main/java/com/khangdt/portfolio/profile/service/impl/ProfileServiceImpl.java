@@ -7,6 +7,8 @@ import com.khangdt.portfolio.profile.mapper.ProfileMapper;
 import com.khangdt.portfolio.profile.repository.ProfileRepository;
 import com.khangdt.portfolio.profile.service.ProfileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     @Transactional
+    @Cacheable(value = "profile", key = "'default'")
     public ProfileResponse getProfile() {
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
                 .orElseGet(() -> profileRepository.save(Profile.builder()
@@ -35,6 +38,7 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "profile", allEntries = true)
     public ProfileResponse updateProfile(ProfileUpdateRequest request) {
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
                 .orElseGet(Profile::new);
