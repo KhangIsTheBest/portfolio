@@ -293,6 +293,9 @@ public class LeetCodeServiceImpl implements LeetCodeService {
                         .build());
             }
         }
+        if (list.isEmpty()) {
+            return buildFallbackSubmissions();
+        }
         return list;
     }
 
