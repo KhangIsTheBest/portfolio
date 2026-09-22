@@ -62,4 +62,15 @@ public class ProfileUpdateRequest {
             message = "English CV URL must be empty, a relative path starting with /, or a valid http(s) URL"
     )
     private String cvEnUrl;
+
+    @Size(max = 100, message = "LeetCode username must not exceed 100 characters")
+    private String leetcodeUsername;
+
+    private String leetcodeSession;
+
+    @Size(max = 100, message = "YouTube channel ID must not exceed 100 characters")
+    private String youtubeChannelId;
+
+    @Size(max = 100, message = "YouTube handle must not exceed 100 characters")
+    private String youtubeHandle;
 }

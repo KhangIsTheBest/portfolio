@@ -30,6 +30,10 @@ public class ProjectMapper {
                 .demoUrl(normalizeUrl(request.getDemoUrl()))
                 .thumbnailUrl(normalizeUrl(request.getThumbnailUrl()))
                 .featured(request.getFeatured())
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .isCurrent(request.getIsCurrent() != null ? request.getIsCurrent() : false)
+                .contentType(request.getContentType() != null ? request.getContentType() : "MARKDOWN")
                 .status(request.getStatus())
                 .build();
     }
@@ -43,6 +47,10 @@ public class ProjectMapper {
         project.setDemoUrl(normalizeUrl(request.getDemoUrl()));
         project.setThumbnailUrl(normalizeUrl(request.getThumbnailUrl()));
         project.setFeatured(request.getFeatured());
+        if (request.getStartDate() != null) project.setStartDate(request.getStartDate());
+        if (request.getEndDate() != null) project.setEndDate(request.getEndDate());
+        if (request.getIsCurrent() != null) project.setIsCurrent(request.getIsCurrent());
+        if (request.getContentType() != null) project.setContentType(request.getContentType());
         project.setStatus(request.getStatus());
     }
 
@@ -68,6 +76,10 @@ public class ProjectMapper {
                 .demoUrl(project.getDemoUrl())
                 .thumbnailUrl(project.getThumbnailUrl())
                 .featured(project.getFeatured())
+                .startDate(project.getStartDate())
+                .endDate(project.getEndDate())
+                .isCurrent(project.getIsCurrent())
+                .contentType(project.getContentType())
                 .status(project.getStatus())
                 .createdBy(toAuthorResponse(project.getCreatedBy()))
                 .createdAt(project.getCreatedAt())
@@ -89,6 +101,10 @@ public class ProjectMapper {
                 .shortDescription(project.getShortDescription())
                 .thumbnailUrl(project.getThumbnailUrl())
                 .featured(project.getFeatured())
+                .startDate(project.getStartDate())
+                .endDate(project.getEndDate())
+                .isCurrent(project.getIsCurrent())
+                .contentType(project.getContentType())
                 .status(project.getStatus())
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())

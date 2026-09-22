@@ -24,6 +24,10 @@ public class ProjectSummaryResponse {
     private String shortDescription;
     private String thumbnailUrl;
     private Boolean featured;
+    private String startDate;
+    private String endDate;
+    private Boolean isCurrent;
+    private String contentType;
     private ProjectStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

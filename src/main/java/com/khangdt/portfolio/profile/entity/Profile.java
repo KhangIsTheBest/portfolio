@@ -58,6 +58,18 @@ public class Profile {
     @Column(name = "cv_en_url", length = 500)
     private String cvEnUrl;
 
+    @Column(name = "leetcode_username", length = 100)
+    private String leetcodeUsername;
+
+    @Column(name = "leetcode_session", columnDefinition = "TEXT")
+    private String leetcodeSession;
+
+    @Column(name = "youtube_channel_id", length = 100)
+    private String youtubeChannelId;
+
+    @Column(name = "youtube_handle", length = 100)
+    private String youtubeHandle;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;

@@ -49,7 +49,9 @@ public class SecurityConfig {
             "/api/v1/blogs",
             "/api/v1/blogs/**",
             "/api/v1/files/**",
-            "/api/v1/files/raw/**"
+            "/api/v1/files/raw/**",
+            "/api/v1/leetcode/**",
+            "/api/v1/youtube/**"
     };
 
     private static final String[] AUTH_ENDPOINTS = {

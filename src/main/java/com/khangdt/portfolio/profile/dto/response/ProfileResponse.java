@@ -25,5 +25,8 @@ public class ProfileResponse {
     private String avatarUrl;
     private String cvViUrl;
     private String cvEnUrl;
+    private String leetcodeUsername;
+    private String youtubeChannelId;
+    private String youtubeHandle;
     private LocalDateTime updatedAt;
 }

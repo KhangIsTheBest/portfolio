@@ -75,6 +75,20 @@ public class Project {
     @Builder.Default
     private Boolean featured = false;
 
+    @Column(name = "start_date", length = 20)
+    private String startDate;
+
+    @Column(name = "end_date", length = 20)
+    private String endDate;
+
+    @Column(name = "is_current", nullable = false)
+    @Builder.Default
+    private Boolean isCurrent = false;
+
+    @Column(name = "content_type", length = 20)
+    @Builder.Default
+    private String contentType = "MARKDOWN";
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

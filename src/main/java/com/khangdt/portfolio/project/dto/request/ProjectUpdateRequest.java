@@ -63,6 +63,17 @@ public class ProjectUpdateRequest {
     @NotNull(message = "Featured flag is required")
     private Boolean featured;
 
+    @Size(max = 20, message = "Start date must not exceed 20 characters")
+    private String startDate;
+
+    @Size(max = 20, message = "End date must not exceed 20 characters")
+    private String endDate;
+
+    private Boolean isCurrent;
+
+    @Size(max = 20, message = "Content type must not exceed 20 characters")
+    private String contentType;
+
     @NotNull(message = "Status is required")
     private ProjectStatus status;
 

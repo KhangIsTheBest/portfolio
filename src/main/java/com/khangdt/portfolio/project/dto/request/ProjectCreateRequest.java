@@ -64,6 +64,19 @@ public class ProjectCreateRequest {
     @Builder.Default
     private Boolean featured = false;
 
+    @Size(max = 20, message = "Start date must not exceed 20 characters")
+    private String startDate;
+
+    @Size(max = 20, message = "End date must not exceed 20 characters")
+    private String endDate;
+
+    @Builder.Default
+    private Boolean isCurrent = false;
+
+    @Size(max = 20, message = "Content type must not exceed 20 characters")
+    @Builder.Default
+    private String contentType = "MARKDOWN";
+
     @NotNull(message = "Status is required")
     @Builder.Default
     private ProjectStatus status = ProjectStatus.PUBLISHED;

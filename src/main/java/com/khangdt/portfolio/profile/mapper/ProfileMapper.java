@@ -18,6 +18,12 @@ public class ProfileMapper {
         profile.setAvatarUrl(normalizeUrl(request.getAvatarUrl()));
         profile.setCvViUrl(normalizeUrl(request.getCvViUrl()));
         profile.setCvEnUrl(normalizeUrl(request.getCvEnUrl()));
+        profile.setLeetcodeUsername(normalizeText(request.getLeetcodeUsername()));
+        if (request.getLeetcodeSession() != null && !request.getLeetcodeSession().isBlank()) {
+            profile.setLeetcodeSession(request.getLeetcodeSession().trim());
+        }
+        profile.setYoutubeChannelId(normalizeText(request.getYoutubeChannelId()));
+        profile.setYoutubeHandle(normalizeText(request.getYoutubeHandle()));
     }
 
     public ProfileResponse toResponse(Profile profile) {
@@ -36,6 +42,9 @@ public class ProfileMapper {
                 .avatarUrl(profile.getAvatarUrl())
                 .cvViUrl(profile.getCvViUrl())
                 .cvEnUrl(profile.getCvEnUrl())
+                .leetcodeUsername(profile.getLeetcodeUsername())
+                .youtubeChannelId(profile.getYoutubeChannelId())
+                .youtubeHandle(profile.getYoutubeHandle())
                 .updatedAt(profile.getUpdatedAt())
                 .build();
     }
