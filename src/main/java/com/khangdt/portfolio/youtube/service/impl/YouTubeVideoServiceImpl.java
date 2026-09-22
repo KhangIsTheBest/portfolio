@@ -131,16 +131,22 @@ public class YouTubeVideoServiceImpl implements YouTubeVideoService {
 
     private YouTubeVideoResponse toResponse(YouTubeVideo entity) {
         if (entity == null) return null;
+        String videoId = entity.getVideoId();
+        String youtubeUrl = (videoId != null && !videoId.isBlank())
+                ? "https://www.youtube.com/watch?v=" + videoId
+                : "https://www.youtube.com";
         return YouTubeVideoResponse.builder()
                 .id(entity.getId())
                 .title(entity.getTitle())
-                .videoId(entity.getVideoId())
+                .videoId(videoId)
+                .youtubeUrl(youtubeUrl)
                 .description(entity.getDescription())
                 .category(entity.getCategory())
                 .thumbnailUrl(entity.getThumbnailUrl())
                 .duration(entity.getDuration())
                 .publishedAt(entity.getPublishedAt())
                 .featured(entity.getFeatured())
+                .active(true)
                 .displayOrder(entity.getDisplayOrder())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())

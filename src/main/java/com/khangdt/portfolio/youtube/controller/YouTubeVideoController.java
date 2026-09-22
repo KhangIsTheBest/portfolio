@@ -33,6 +33,14 @@ public class YouTubeVideoController {
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
 
+    @Operation(summary = "Get all YouTube videos for admin", description = "Retrieves full list of YouTube videos for admin management. Requires admin JWT.")
+    @SecurityRequirement(name = BEARER_AUTH)
+    @GetMapping("/api/v1/admin/youtube/videos")
+    public ResponseEntity<ApiResponse<List<YouTubeVideoResponse>>> getAllVideosAdmin() {
+        List<YouTubeVideoResponse> videos = videoService.getAllVideos(null);
+        return ResponseEntity.ok(ApiResponse.success(videos));
+    }
+
     @Operation(summary = "Get YouTube video by ID")
     @GetMapping("/api/v1/youtube/videos/{id}")
     public ResponseEntity<ApiResponse<YouTubeVideoResponse>> getVideoById(@PathVariable Long id) {
