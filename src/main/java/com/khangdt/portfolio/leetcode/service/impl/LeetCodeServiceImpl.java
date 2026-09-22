@@ -115,7 +115,8 @@ public class LeetCodeServiceImpl implements LeetCodeService {
     private String getLeetcodeUsername() {
         return profileRepository.findFirstByOrderByIdAsc()
                 .map(Profile::getLeetcodeUsername)
-                .orElse("phanduykhang");
+                .filter(u -> u != null && !u.isBlank())
+                .orElse("psmNQXkg5O");
     }
 
     private String getLeetcodeSession() {
@@ -123,6 +124,7 @@ public class LeetCodeServiceImpl implements LeetCodeService {
                 .map(Profile::getLeetcodeSession)
                 .orElse(null);
     }
+
 
     private LeetCodeStatsResponse fetchStatsFromGraphQL(String username) throws Exception {
         String query = """
@@ -282,14 +284,21 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         List<LeetCodeSubmissionItem> list = new ArrayList<>();
         if (listNode.isArray()) {
             for (JsonNode item : listNode) {
+                String titleSlug = item.path("titleSlug").asText();
+                String diff = "Easy";
+                if (titleSlug.contains("longest-palindromic") || titleSlug.contains("longest-substring") || titleSlug.contains("add-two-numbers") || titleSlug.contains("lru-cache") || titleSlug.contains("zigzag")) {
+                    diff = "Medium";
+                } else if (titleSlug.contains("trapping-rain") || titleSlug.contains("median-of-two") || titleSlug.contains("merge-k-sorted")) {
+                    diff = "Hard";
+                }
                 list.add(LeetCodeSubmissionItem.builder()
                         .id(item.path("id").asText())
                         .title(item.path("title").asText())
-                        .titleSlug(item.path("titleSlug").asText())
+                        .titleSlug(titleSlug)
                         .timestamp(item.path("timestamp").asLong())
                         .statusDisplay("Accepted")
                         .lang("Java")
-                        .difficulty("Medium")
+                        .difficulty(diff)
                         .build());
             }
         }
