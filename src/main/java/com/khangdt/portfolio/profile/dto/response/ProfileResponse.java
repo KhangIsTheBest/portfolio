@@ -23,5 +23,7 @@ public class ProfileResponse {
     private String linkedinUrl;
     private String email;
     private String avatarUrl;
+    private String cvViUrl;
+    private String cvEnUrl;
     private LocalDateTime updatedAt;
 }

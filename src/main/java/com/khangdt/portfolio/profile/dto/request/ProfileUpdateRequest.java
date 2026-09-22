@@ -48,4 +48,18 @@ public class ProfileUpdateRequest {
             message = "Avatar URL must be empty, a relative path starting with /, or a valid http(s) URL"
     )
     private String avatarUrl;
+
+    @Size(max = 500, message = "Vietnamese CV URL must not exceed 500 characters")
+    @Pattern(
+            regexp = "^(|/\\S+|https?://\\S+)$",
+            message = "Vietnamese CV URL must be empty, a relative path starting with /, or a valid http(s) URL"
+    )
+    private String cvViUrl;
+
+    @Size(max = 500, message = "English CV URL must not exceed 500 characters")
+    @Pattern(
+            regexp = "^(|/\\S+|https?://\\S+)$",
+            message = "English CV URL must be empty, a relative path starting with /, or a valid http(s) URL"
+    )
+    private String cvEnUrl;
 }

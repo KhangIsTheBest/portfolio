@@ -16,6 +16,8 @@ public class ProfileMapper {
         profile.setLinkedinUrl(normalizeUrl(request.getLinkedinUrl()));
         profile.setEmail(normalizeText(request.getEmail()));
         profile.setAvatarUrl(normalizeUrl(request.getAvatarUrl()));
+        profile.setCvViUrl(normalizeUrl(request.getCvViUrl()));
+        profile.setCvEnUrl(normalizeUrl(request.getCvEnUrl()));
     }
 
     public ProfileResponse toResponse(Profile profile) {
@@ -32,6 +34,8 @@ public class ProfileMapper {
                 .linkedinUrl(profile.getLinkedinUrl())
                 .email(profile.getEmail())
                 .avatarUrl(profile.getAvatarUrl())
+                .cvViUrl(profile.getCvViUrl())
+                .cvEnUrl(profile.getCvEnUrl())
                 .updatedAt(profile.getUpdatedAt())
                 .build();
     }

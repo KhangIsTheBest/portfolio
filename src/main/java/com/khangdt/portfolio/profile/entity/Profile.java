@@ -52,6 +52,12 @@ public class Profile {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    @Column(name = "cv_vi_url", length = 500)
+    private String cvViUrl;
+
+    @Column(name = "cv_en_url", length = 500)
+    private String cvEnUrl;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
