@@ -47,7 +47,9 @@ public class SecurityConfig {
             "/api/v1/technologies/**",
             "/api/v1/profile",
             "/api/v1/blogs",
-            "/api/v1/blogs/**"
+            "/api/v1/blogs/**",
+            "/api/v1/files/**",
+            "/api/v1/files/raw/**"
     };
 
     private static final String[] AUTH_ENDPOINTS = {
@@ -66,6 +68,7 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(AbstractHttpConfigurer::disable))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
