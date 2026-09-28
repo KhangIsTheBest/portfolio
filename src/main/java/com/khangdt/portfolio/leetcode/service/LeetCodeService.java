@@ -13,5 +13,7 @@ public interface LeetCodeService {
 
     LeetCodeSubmissionItem getSubmissionCode(String submissionId);
 
+    int syncAllSubmissionsFromLeetCode();
+
     void evictCache();
 }

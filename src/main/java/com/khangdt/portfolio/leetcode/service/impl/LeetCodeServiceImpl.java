@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.khangdt.portfolio.leetcode.dto.LeetCodeStatsResponse;
 import com.khangdt.portfolio.leetcode.dto.LeetCodeSubmissionItem;
+import com.khangdt.portfolio.leetcode.entity.LeetCodeSubmission;
+import com.khangdt.portfolio.leetcode.repository.LeetCodeSubmissionRepository;
 import com.khangdt.portfolio.leetcode.service.LeetCodeService;
 import com.khangdt.portfolio.profile.entity.Profile;
 import com.khangdt.portfolio.profile.repository.ProfileRepository;
@@ -13,11 +15,17 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 @Service
@@ -26,6 +34,9 @@ import java.util.*;
 public class LeetCodeServiceImpl implements LeetCodeService {
 
     private static final String LEETCODE_GRAPHQL_URL = "https://leetcode.com/graphql";
+    private static final String LEETCODE_REST_SUBMISSIONS_URL = "https://leetcode.com/api/submissions/";
+    
+    private final LeetCodeSubmissionRepository submissionRepository;
     private final ProfileRepository profileRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -34,10 +45,6 @@ public class LeetCodeServiceImpl implements LeetCodeService {
     @Cacheable(value = "leetcode_stats", key = "'public_stats'", unless = "#result == null")
     public LeetCodeStatsResponse getStats() {
         String username = getLeetcodeUsername();
-        if (username == null || username.isBlank()) {
-            username = "phanduykhang"; // Default fallback username
-        }
-
         try {
             return fetchStatsFromGraphQL(username);
         } catch (Exception ex) {
@@ -49,13 +56,25 @@ public class LeetCodeServiceImpl implements LeetCodeService {
     @Override
     @Cacheable(value = "leetcode_submissions", key = "#limit", unless = "#result == null || #result.isEmpty()")
     public List<LeetCodeSubmissionItem> getSubmissions(int limit) {
-        String username = getLeetcodeUsername();
-        if (username == null || username.isBlank()) {
-            username = "phanduykhang";
+        // 1. Try reading from Database first
+        List<LeetCodeSubmission> dbList = submissionRepository.findAllByOrderByTimestampDesc();
+        if (!dbList.isEmpty()) {
+            List<LeetCodeSubmissionItem> items = dbList.stream()
+                    .map(this::toItem)
+                    .toList();
+            if (limit > 0 && items.size() > limit) {
+                return items.subList(0, limit);
+            }
+            return items;
         }
 
+        // 2. If DB is empty, fetch recent from GraphQL and trigger async deep sync
+        String username = getLeetcodeUsername();
         try {
-            return fetchRecentSubmissions(username, limit);
+            List<LeetCodeSubmissionItem> recent = fetchRecentSubmissions(username, limit);
+            // Save initial recent submissions to DB so DB has data immediately
+            saveSubmissionsToDb(recent);
+            return recent;
         } catch (Exception ex) {
             log.warn("Failed to fetch LeetCode submissions for user '{}': {}. Serving fallback submissions.", username, ex.getMessage());
             return buildFallbackSubmissions();
@@ -64,16 +83,35 @@ public class LeetCodeServiceImpl implements LeetCodeService {
 
     @Override
     public LeetCodeSubmissionItem getSubmissionCode(String submissionId) {
+        // 1. Check in database first
+        Optional<LeetCodeSubmission> existing = submissionRepository.findById(submissionId);
+        if (existing.isPresent() && existing.get().getCode() != null && !existing.get().getCode().isBlank()) {
+            return toItem(existing.get());
+        }
+
+        // 2. If code missing in DB, try fetching via session cookie
         String sessionCookie = getLeetcodeSession();
         if (sessionCookie != null && !sessionCookie.isBlank()) {
             try {
-                return fetchSubmissionDetails(submissionId, sessionCookie);
+                LeetCodeSubmissionItem fetched = fetchSubmissionDetails(submissionId, sessionCookie);
+                if (existing.isPresent()) {
+                    LeetCodeSubmission entity = existing.get();
+                    entity.setCode(fetched.getCode());
+                    if (fetched.getRuntime() != null) entity.setRuntime(fetched.getRuntime());
+                    if (fetched.getMemory() != null) entity.setMemory(fetched.getMemory());
+                    submissionRepository.save(entity);
+                }
+                return fetched;
             } catch (Exception ex) {
                 log.warn("Failed to fetch LeetCode submission code via session for id {}: {}", submissionId, ex.getMessage());
             }
         }
 
-        // Return problem sample solution template if session not present or unavailable
+        if (existing.isPresent()) {
+            return toItem(existing.get());
+        }
+
+        // 3. Fallback mock template if nothing available
         return LeetCodeSubmissionItem.builder()
                 .id(submissionId)
                 .title("Solution #" + submissionId)
@@ -85,20 +123,10 @@ public class LeetCodeServiceImpl implements LeetCodeService {
                 .memory("42.5 MB")
                 .timestamp(System.currentTimeMillis() / 1000)
                 .code("""
-                // LeetCode Solution
-                // Language: Java (Java 21 / OpenJDK)
-                // Runtime: 1 ms (Beats 98.4%) | Memory: 42.5 MB
-                
+                // Problem Solution on LeetCode
+                // Chi tiết mã nguồn được lưu trữ an toàn trong cơ sở dữ liệu.
                 class Solution {
                     public int[] solve(int[] nums, int target) {
-                        Map<Integer, Integer> map = new HashMap<>();
-                        for (int i = 0; i < nums.length; i++) {
-                            int complement = target - nums[i];
-                            if (map.containsKey(complement)) {
-                                return new int[] { map.get(complement), i };
-                            }
-                            map.put(nums[i], i);
-                        }
                         return new int[0];
                     }
                 }
@@ -107,9 +135,219 @@ public class LeetCodeServiceImpl implements LeetCodeService {
     }
 
     @Override
+    @Transactional
+    @CacheEvict(value = {"leetcode_stats", "leetcode_submissions"}, allEntries = true)
+    public int syncAllSubmissionsFromLeetCode() {
+        String username = getLeetcodeUsername();
+        String rawCookie = getLeetcodeSession();
+        log.info("Starting LeetCode full sync for user '{}' with cookie configuration...", username);
+
+        int totalSaved = 0;
+
+        // Try Authenticated REST API first if cookie is available
+        if (rawCookie != null && !rawCookie.isBlank()) {
+            try {
+                totalSaved = syncViaRestSubmissionsApi(rawCookie);
+                log.info("Synced {} accepted submissions via LeetCode REST API", totalSaved);
+            } catch (Exception ex) {
+                log.warn("REST Submissions API sync failed: {}. Falling back to GraphQL sync...", ex.getMessage());
+            }
+        }
+
+        // If REST didn't run or returned 0, try Public GraphQL recentAcSubmissionList
+        if (totalSaved == 0) {
+            try {
+                List<LeetCodeSubmissionItem> recent = fetchRecentSubmissions(username, 100);
+                totalSaved = saveSubmissionsToDb(recent);
+                log.info("Synced {} recent submissions via GraphQL", totalSaved);
+            } catch (Exception ex) {
+                log.error("GraphQL sync also failed for user {}: {}", username, ex.getMessage());
+            }
+        }
+
+        return (int) submissionRepository.count();
+    }
+
+    @Override
     @CacheEvict(value = {"leetcode_stats", "leetcode_submissions"}, allEntries = true)
     public void evictCache() {
         log.info("LeetCode Redis/In-Memory caches evicted successfully.");
+    }
+
+    private int syncViaRestSubmissionsApi(String rawCookie) {
+        String session = extractCookieValue(rawCookie, "LEETCODE_SESSION");
+        String csrf = extractCookieValue(rawCookie, "csrftoken");
+
+        if (session == null || session.isBlank()) {
+            session = rawCookie.trim(); // If user provided raw session value directly
+        }
+
+        String cookieHeader = "LEETCODE_SESSION=" + session;
+        if (csrf != null && !csrf.isBlank()) {
+            cookieHeader += "; csrftoken=" + csrf;
+        }
+
+        int offset = 0;
+        int limit = 20;
+        boolean hasNext = true;
+        int savedCount = 0;
+        int maxPages = 50; // Safeguard up to 1000 submissions
+        int page = 0;
+
+        while (hasNext && page < maxPages) {
+            page++;
+            String url = LEETCODE_REST_SUBMISSIONS_URL + "?offset=" + offset + "&limit=" + limit;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Cookie", cookieHeader);
+            if (csrf != null && !csrf.isBlank()) {
+                headers.set("x-csrftoken", csrf);
+            }
+            headers.set("Referer", "https://leetcode.com/submissions/");
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+            HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, requestEntity, String.class);
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                log.warn("Failed to fetch LeetCode submissions page offset={}: HTTP {}", offset, response.getStatusCode());
+                break;
+            }
+
+            try {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                hasNext = root.path("has_next").asBoolean(false);
+                JsonNode submissionsDump = root.path("submissions_dump");
+
+                if (!submissionsDump.isArray() || submissionsDump.isEmpty()) {
+                    break;
+                }
+
+                for (JsonNode sub : submissionsDump) {
+                    String status = sub.path("status_display").asText("Accepted");
+                    if (!"Accepted".equalsIgnoreCase(status)) {
+                        continue; // Only store accepted solutions
+                    }
+
+                    String id = sub.path("id").asText();
+                    String title = sub.path("title").asText();
+                    String titleSlug = sub.path("title_slug").asText();
+                    String lang = sub.path("lang").asText("java");
+                    String runtime = sub.path("runtime").asText();
+                    String memory = sub.path("memory").asText();
+                    String code = sub.path("code").asText(null);
+                    long timestamp = sub.path("timestamp").asLong(System.currentTimeMillis() / 1000);
+
+                    String difficulty = inferDifficulty(titleSlug);
+
+                    LocalDateTime submittedAt = LocalDateTime.ofInstant(
+                            Instant.ofEpochSecond(timestamp),
+                            ZoneId.systemDefault()
+                    );
+
+                    LeetCodeSubmission entity = submissionRepository.findById(id)
+                            .orElse(LeetCodeSubmission.builder().id(id).build());
+
+                    entity.setTitle(title);
+                    entity.setTitleSlug(titleSlug);
+                    entity.setDifficulty(difficulty);
+                    entity.setLang(lang.substring(0, 1).toUpperCase() + (lang.length() > 1 ? lang.substring(1) : ""));
+                    entity.setStatusDisplay(status);
+                    entity.setRuntime(runtime);
+                    entity.setMemory(memory);
+                    if (code != null && !code.isBlank()) {
+                        entity.setCode(code);
+                    }
+                    entity.setTimestamp(timestamp);
+                    entity.setSubmittedAt(submittedAt);
+
+                    submissionRepository.save(entity);
+                    savedCount++;
+                }
+
+                offset += limit;
+            } catch (Exception ex) {
+                log.error("Error parsing submissions at offset {}: {}", offset, ex.getMessage());
+                break;
+            }
+        }
+
+        return savedCount;
+    }
+
+    private int saveSubmissionsToDb(List<LeetCodeSubmissionItem> items) {
+        int count = 0;
+        for (LeetCodeSubmissionItem item : items) {
+            if (item == null || item.getId() == null) continue;
+            LocalDateTime submittedAt = LocalDateTime.ofInstant(
+                    Instant.ofEpochSecond(item.getTimestamp() > 0 ? item.getTimestamp() : System.currentTimeMillis() / 1000),
+                    ZoneId.systemDefault()
+            );
+
+            LeetCodeSubmission entity = submissionRepository.findById(item.getId())
+                    .orElse(LeetCodeSubmission.builder().id(item.getId()).build());
+
+            entity.setTitle(item.getTitle());
+            entity.setTitleSlug(item.getTitleSlug());
+            entity.setDifficulty(item.getDifficulty() != null ? item.getDifficulty() : inferDifficulty(item.getTitleSlug()));
+            entity.setLang(item.getLang() != null ? item.getLang() : "Java");
+            entity.setStatusDisplay(item.getStatusDisplay() != null ? item.getStatusDisplay() : "Accepted");
+            entity.setRuntime(item.getRuntime());
+            entity.setMemory(item.getMemory());
+            if (item.getCode() != null && !item.getCode().isBlank()) {
+                entity.setCode(item.getCode());
+            }
+            entity.setTimestamp(item.getTimestamp());
+            entity.setSubmittedAt(submittedAt);
+
+            submissionRepository.save(entity);
+            count++;
+        }
+        return count;
+    }
+
+    private String extractCookieValue(String cookieString, String cookieName) {
+        if (cookieString == null || cookieString.isBlank()) return null;
+        if (!cookieString.contains("=") && !cookieString.contains(";")) {
+            return cookieString.trim();
+        }
+        for (String pair : cookieString.split(";")) {
+            String[] parts = pair.trim().split("=", 2);
+            if (parts.length == 2 && parts[0].trim().equalsIgnoreCase(cookieName)) {
+                return parts[1].trim();
+            }
+        }
+        return null;
+    }
+
+    private String inferDifficulty(String titleSlug) {
+        if (titleSlug == null) return "Medium";
+        String s = titleSlug.toLowerCase();
+        if (s.contains("longest-palindromic") || s.contains("longest-substring") || s.contains("add-two-numbers") ||
+            s.contains("lru-cache") || s.contains("zigzag") || s.contains("3sum") || s.contains("container-with-most-water") ||
+            s.contains("generate-parentheses") || s.contains("swap-nodes-in-pairs") || s.contains("divide-two-integers")) {
+            return "Medium";
+        }
+        if (s.contains("trapping-rain") || s.contains("median-of-two") || s.contains("merge-k-sorted") ||
+            s.contains("regular-expression") || s.contains("reverse-nodes-in-k-group") || s.contains("first-missing-positive")) {
+            return "Hard";
+        }
+        return "Easy";
+    }
+
+    private LeetCodeSubmissionItem toItem(LeetCodeSubmission entity) {
+        return LeetCodeSubmissionItem.builder()
+                .id(entity.getId())
+                .title(entity.getTitle())
+                .titleSlug(entity.getTitleSlug())
+                .difficulty(entity.getDifficulty() != null ? entity.getDifficulty() : "Medium")
+                .statusDisplay(entity.getStatusDisplay() != null ? entity.getStatusDisplay() : "Accepted")
+                .lang(entity.getLang() != null ? entity.getLang() : "Java")
+                .runtime(entity.getRuntime())
+                .memory(entity.getMemory())
+                .timestamp(entity.getTimestamp() != null ? entity.getTimestamp() : 0)
+                .code(entity.getCode())
+                .build();
     }
 
     private String getLeetcodeUsername() {
@@ -124,7 +362,6 @@ public class LeetCodeServiceImpl implements LeetCodeService {
                 .map(Profile::getLeetcodeSession)
                 .orElse(null);
     }
-
 
     private LeetCodeStatsResponse fetchStatsFromGraphQL(String username) throws Exception {
         String query = """
@@ -199,6 +436,12 @@ public class LeetCodeServiceImpl implements LeetCodeService {
             }
         }
 
+        // If totalSolved from GraphQL is 0 but DB has stored submissions, use DB count
+        long dbSolvedCount = submissionRepository.count();
+        if (dbSolvedCount > totalSolved) {
+            totalSolved = (int) dbSolvedCount;
+        }
+
         int totalQuestions = 3300, easyQuestions = 850, mediumQuestions = 1750, hardQuestions = 700;
         JsonNode allQuestions = data.path("allQuestionsCount");
         if (allQuestions.isArray()) {
@@ -212,7 +455,6 @@ public class LeetCodeServiceImpl implements LeetCodeService {
             }
         }
 
-        // Contest ranking
         JsonNode contest = data.path("userContestRanking");
         double contestRating = contest.path("rating").asDouble(0.0);
         int contestGlobalRanking = contest.path("globalRanking").asInt(0);
@@ -220,7 +462,6 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         int totalContests = contest.path("attendedContestsCount").asInt(0);
         String badge = contest.path("badge").path("name").asText(null);
 
-        // Calendar
         Map<String, Integer> calendarMap = new HashMap<>();
         String calendarStr = matchedUser.path("submissionCalendar").asText("");
         if (!calendarStr.isBlank()) {
@@ -269,7 +510,7 @@ public class LeetCodeServiceImpl implements LeetCodeService {
 
         Map<String, Object> body = new HashMap<>();
         body.put("query", query);
-        body.put("variables", Map.of("username", username, "limit", limit > 0 ? limit : 20));
+        body.put("variables", Map.of("username", username, "limit", limit > 0 ? limit : 50));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -285,12 +526,7 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         if (listNode.isArray()) {
             for (JsonNode item : listNode) {
                 String titleSlug = item.path("titleSlug").asText();
-                String diff = "Easy";
-                if (titleSlug.contains("longest-palindromic") || titleSlug.contains("longest-substring") || titleSlug.contains("add-two-numbers") || titleSlug.contains("lru-cache") || titleSlug.contains("zigzag")) {
-                    diff = "Medium";
-                } else if (titleSlug.contains("trapping-rain") || titleSlug.contains("median-of-two") || titleSlug.contains("merge-k-sorted")) {
-                    diff = "Hard";
-                }
+                String diff = inferDifficulty(titleSlug);
                 list.add(LeetCodeSubmissionItem.builder()
                         .id(item.path("id").asText())
                         .title(item.path("title").asText())
@@ -308,7 +544,14 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         return list;
     }
 
-    private LeetCodeSubmissionItem fetchSubmissionDetails(String submissionId, String sessionCookie) throws Exception {
+    private LeetCodeSubmissionItem fetchSubmissionDetails(String submissionId, String rawCookie) throws Exception {
+        String session = extractCookieValue(rawCookie, "LEETCODE_SESSION");
+        String csrf = extractCookieValue(rawCookie, "csrftoken");
+        if (session == null || session.isBlank()) session = rawCookie.trim();
+
+        String cookieHeader = "LEETCODE_SESSION=" + session;
+        if (csrf != null && !csrf.isBlank()) cookieHeader += "; csrftoken=" + csrf;
+
         String query = """
         query submissionDetails($submissionId: Int!) {
           submissionDetails(submissionId: $submissionId) {
@@ -338,7 +581,8 @@ public class LeetCodeServiceImpl implements LeetCodeService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Cookie", "LEETCODE_SESSION=" + sessionCookie);
+        headers.set("Cookie", cookieHeader);
+        if (csrf != null && !csrf.isBlank()) headers.set("x-csrftoken", csrf);
         headers.set("User-Agent", "Mozilla/5.0");
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);

@@ -44,10 +44,10 @@ public class LeetCodeController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @Operation(summary = "Evict LeetCode cache and force sync", description = "Admin cache refresh trigger")
+    @Operation(summary = "Evict LeetCode cache and force sync", description = "Admin cache refresh trigger and full submissions sync")
     @PostMapping("/api/v1/admin/leetcode/sync")
     public ResponseEntity<ApiResponse<String>> syncLeetCode() {
-        leetCodeService.evictCache();
-        return ResponseEntity.ok(ApiResponse.success("LeetCode cache evicted. Next request will sync fresh stats from LeetCode."));
+        int synced = leetCodeService.syncAllSubmissionsFromLeetCode();
+        return ResponseEntity.ok(ApiResponse.success("LeetCode sync completed. Successfully synced " + synced + " submissions."));
     }
 }
