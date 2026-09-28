@@ -59,13 +59,9 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         // 1. Try reading from Database first
         List<LeetCodeSubmission> dbList = submissionRepository.findAllByOrderByTimestampDesc();
         if (!dbList.isEmpty()) {
-            List<LeetCodeSubmissionItem> items = dbList.stream()
+            return dbList.stream()
                     .map(this::toItem)
                     .toList();
-            if (limit > 0 && items.size() > limit) {
-                return items.subList(0, limit);
-            }
-            return items;
         }
 
         // 2. If DB is empty, fetch recent from GraphQL and trigger async deep sync
@@ -144,24 +140,34 @@ public class LeetCodeServiceImpl implements LeetCodeService {
 
         int totalSaved = 0;
 
-        // Try Authenticated REST API first if cookie is available
+        // 1. If Cookie is configured, run GraphQL submissionList pagination (reaches all historic 2024+ submissions)
         if (rawCookie != null && !rawCookie.isBlank()) {
             try {
-                totalSaved = syncViaRestSubmissionsApi(rawCookie);
-                log.info("Synced {} accepted submissions via LeetCode REST API", totalSaved);
+                int gqlSaved = syncViaGraphQLSubmissionList(rawCookie);
+                log.info("Synced {} historic submissions via GraphQL submissionList", gqlSaved);
+                totalSaved += gqlSaved;
             } catch (Exception ex) {
-                log.warn("REST Submissions API sync failed: {}. Falling back to GraphQL sync...", ex.getMessage());
+                log.warn("GraphQL submissionList sync failed: {}", ex.getMessage());
+            }
+
+            // 2. Also run REST Submissions API (which extracts full source code for submissions)
+            try {
+                int restSaved = syncViaRestSubmissionsApi(rawCookie);
+                log.info("Synced {} submissions with code via LeetCode REST API", restSaved);
+                totalSaved += restSaved;
+            } catch (Exception ex) {
+                log.warn("REST Submissions API sync failed: {}", ex.getMessage());
             }
         }
 
-        // If REST didn't run or returned 0, try Public GraphQL recentAcSubmissionList
+        // 3. If still nothing saved, try public GraphQL recentAcSubmissionList
         if (totalSaved == 0) {
             try {
                 List<LeetCodeSubmissionItem> recent = fetchRecentSubmissions(username, 100);
                 totalSaved = saveSubmissionsToDb(recent);
-                log.info("Synced {} recent submissions via GraphQL", totalSaved);
+                log.info("Synced {} recent submissions via public GraphQL", totalSaved);
             } catch (Exception ex) {
-                log.error("GraphQL sync also failed for user {}: {}", username, ex.getMessage());
+                log.error("Public GraphQL sync also failed for user {}: {}", username, ex.getMessage());
             }
         }
 
@@ -172,6 +178,139 @@ public class LeetCodeServiceImpl implements LeetCodeService {
     @CacheEvict(value = {"leetcode_stats", "leetcode_submissions"}, allEntries = true)
     public void evictCache() {
         log.info("LeetCode Redis/In-Memory caches evicted successfully.");
+    }
+
+    private int syncViaGraphQLSubmissionList(String rawCookie) {
+        String session = extractCookieValue(rawCookie, "LEETCODE_SESSION");
+        String csrf = extractCookieValue(rawCookie, "csrftoken");
+        if (session == null || session.isBlank()) {
+            session = rawCookie.trim();
+        }
+
+        String cookieHeader = "LEETCODE_SESSION=" + session;
+        if (csrf != null && !csrf.isBlank()) {
+            cookieHeader += "; csrftoken=" + csrf;
+        }
+
+        String query = """
+        query submissionList($offset: Int!, $limit: Int!, $lastKey: String) {
+          submissionList(offset: $offset, limit: $limit, lastKey: $lastKey) {
+            lastKey
+            hasNext
+            submissions {
+              id
+              statusDisplay
+              lang
+              runtime
+              memory
+              timestamp
+              title
+              titleSlug
+            }
+          }
+        }
+        """;
+
+        String lastKey = null;
+        int offset = 0;
+        int limit = 20;
+        boolean hasNext = true;
+        int savedCount = 0;
+        int page = 0;
+        int maxPages = 100; // Can fetch up to 2000 submissions
+
+        while (hasNext && page < maxPages) {
+            page++;
+            try {
+                Map<String, Object> variables = new HashMap<>();
+                variables.put("offset", offset);
+                variables.put("limit", limit);
+                if (lastKey != null && !lastKey.isBlank()) {
+                    variables.put("lastKey", lastKey);
+                }
+
+                Map<String, Object> requestBody = new HashMap<>();
+                requestBody.put("query", query);
+                requestBody.put("variables", variables);
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.set("Cookie", cookieHeader);
+                if (csrf != null && !csrf.isBlank()) {
+                    headers.set("x-csrftoken", csrf);
+                }
+                headers.set("Referer", "https://leetcode.com/");
+                headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+                HttpEntity<Map<String, Object>> entityReq = new HttpEntity<>(requestBody, headers);
+                ResponseEntity<String> response = restTemplate.postForEntity(LEETCODE_GRAPHQL_URL, entityReq, String.class);
+
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    log.warn("GraphQL submissionList failed on page {}: HTTP {}", page, response.getStatusCode());
+                    break;
+                }
+
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode subListNode = root.path("data").path("submissionList");
+                if (subListNode.isMissingNode() || subListNode.isNull()) {
+                    break;
+                }
+
+                hasNext = subListNode.path("hasNext").asBoolean(false);
+                JsonNode nextKeyNode = subListNode.path("lastKey");
+                lastKey = (nextKeyNode.isTextual() && !nextKeyNode.asText().isBlank()) ? nextKeyNode.asText() : null;
+
+                JsonNode submissions = subListNode.path("submissions");
+                if (!submissions.isArray() || submissions.isEmpty()) {
+                    break;
+                }
+
+                for (JsonNode sub : submissions) {
+                    String status = sub.path("statusDisplay").asText("Accepted");
+                    if (!"Accepted".equalsIgnoreCase(status)) {
+                        continue; // Only store accepted solutions
+                    }
+
+                    String id = sub.path("id").asText();
+                    String title = sub.path("title").asText();
+                    String titleSlug = sub.path("titleSlug").asText();
+                    String lang = sub.path("lang").asText("java");
+                    String runtime = sub.path("runtime").asText();
+                    String memory = sub.path("memory").asText();
+                    long timestamp = sub.path("timestamp").asLong(System.currentTimeMillis() / 1000);
+
+                    String difficulty = inferDifficulty(titleSlug);
+
+                    LocalDateTime submittedAt = LocalDateTime.ofInstant(
+                            Instant.ofEpochSecond(timestamp),
+                            ZoneId.systemDefault()
+                    );
+
+                    LeetCodeSubmission entity = submissionRepository.findById(id)
+                            .orElse(LeetCodeSubmission.builder().id(id).build());
+
+                    entity.setTitle(title);
+                    entity.setTitleSlug(titleSlug);
+                    entity.setDifficulty(difficulty);
+                    entity.setLang(lang.substring(0, 1).toUpperCase() + (lang.length() > 1 ? lang.substring(1) : ""));
+                    entity.setStatusDisplay(status);
+                    entity.setRuntime(runtime);
+                    entity.setMemory(memory);
+                    entity.setTimestamp(timestamp);
+                    entity.setSubmittedAt(submittedAt);
+
+                    submissionRepository.save(entity);
+                    savedCount++;
+                }
+
+                offset += submissions.size();
+            } catch (Exception ex) {
+                log.error("Error in GraphQL submissionList sync on page {}: {}", page, ex.getMessage());
+                break;
+            }
+        }
+
+        return savedCount;
     }
 
     private int syncViaRestSubmissionsApi(String rawCookie) {
