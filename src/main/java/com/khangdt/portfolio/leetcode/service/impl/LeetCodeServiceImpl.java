@@ -308,15 +308,25 @@ public class LeetCodeServiceImpl implements LeetCodeService {
 
     private String extractCookieValue(String cookieString, String cookieName) {
         if (cookieString == null || cookieString.isBlank()) return null;
-        if (!cookieString.contains("=") && !cookieString.contains(";")) {
-            return cookieString.trim();
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "(?i)(?:^|[;\\s\\n\\r,])" + java.util.regex.Pattern.quote(cookieName) + "\\s*[:=]\\s*([^;\\s\\n\\r]+)"
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(cookieString);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
         }
-        for (String pair : cookieString.split(";")) {
-            String[] parts = pair.trim().split("=", 2);
-            if (parts.length == 2 && parts[0].trim().equalsIgnoreCase(cookieName)) {
-                return parts[1].trim();
+
+        // Fallback: If looking for LEETCODE_SESSION and input starts with JWT header "eyJ"
+        if ("LEETCODE_SESSION".equalsIgnoreCase(cookieName) && cookieString.trim().startsWith("eyJ")) {
+            String[] tokens = cookieString.trim().split("[;\\s\\n\\r]+");
+            for (String t : tokens) {
+                if (t.startsWith("eyJ")) {
+                    return t.trim();
+                }
             }
         }
+
         return null;
     }
 
